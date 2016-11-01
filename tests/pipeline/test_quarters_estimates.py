@@ -893,6 +893,7 @@ class WithEstimateWindows(WithEstimates):
 
     @classmethod
     def make_events(cls):
+        # Typical case: 2 consecutive quarters.
         sid_0_timeline = pd.DataFrame({
             TS_FIELD_NAME: [cls.window_test_start_date,
                             pd.Timestamp('2015-01-20'),
@@ -1023,8 +1024,11 @@ class WithEstimateWindows(WithEstimates):
                     trading_days[:today_idx + 1]
                 ).values
                 timeline_start_idx = (len(today_timeline) - window_len)
-                assert_almost_equal(estimate,
-                                    today_timeline[timeline_start_idx:])
+                try:
+                    assert_almost_equal(estimate,
+                                        today_timeline[timeline_start_idx:])
+                except AssertionError:
+                    import pdb; pdb.set_trace()
 
         engine = SimplePipelineEngine(
             lambda x: self.loader,
@@ -1264,44 +1268,61 @@ class WithSplitAdjustedWindows(WithEstimateWindows):
 
     @classmethod
     def make_splits_data(cls):
+        # For sid 0, we want to apply a series of splits before and after the
+        #  split-adjusted-asof-date we well as between quarters (for the
+        # previous case, where we won't see any values until after the event
+        # happens).
         sid_0_splits = pd.DataFrame({
             SID_FIELD_NAME: 0,
-            'ratio': (-1., 2., 3., 4., 5., 6., 7., 100),
+            'ratio': (-1., 2., 3., 4., 5., 6., 7., 8., 100),
             'effective_date': (pd.Timestamp('2014-01-01'),  # Filter out
-                               # Split before Q1 release - after first
-                               # estimate
-                               pd.Timestamp('2015-01-07'),
-                               # Split before Q1 release
+                               # Split before Q1 event, on the same date as
+                               # the first estimate, and on the first date of
+                               # the date index.
+                               pd.Timestamp('2015-01-05'),
+                               # Split before Q1 event
                                pd.Timestamp('2015-01-09'),
-                               # Split before Q1 release
+                               # Split before Q1 event
                                pd.Timestamp('2015-01-13'),
-                               # Split before Q1 release
+                               # Split before Q1 event
                                pd.Timestamp('2015-01-15'),
-                               # Split before Q1 release
+                               # Split before Q1 event
                                pd.Timestamp('2015-01-18'),
-                               # Split after Q1 release and before Q2 release
+                               # Split after Q1 event and before Q2 event
                                pd.Timestamp('2015-01-30'),
+                               # Split on the same date as Q2/the last
+                               # estimate and on the last date of the date
+                               # index.
+                               pd.Timestamp('2015-02-10'),
                                # Filter out - this is after our date index
                                pd.Timestamp('2016-01-01'))
         })
 
         sid_10_splits = pd.DataFrame({
             SID_FIELD_NAME: 10,
-            'ratio': (.2, .3),
-            'effective_date': (  # Split before Q1 release - before first
-                # estimate
+            'ratio': (.1, .2, .3, .4),
+            'effective_date': (
+                # Split on the first date of the date index but before any
+                # estimates.
+                pd.Timestamp('2015-01-05'),
+                # We want a split before the first estimate and before the
+                # split-adjusted-asof-date but within our calendar index so
+                # that we can test that the split is NEVER applied.
                 pd.Timestamp('2015-01-07'),
-                # Split before Q1 release
-                pd.Timestamp('2015-01-20')),
+                # Apply a single split before Q1 event.
+                pd.Timestamp('2015-01-20'),
+                # Split on the last date of the date index & after all
+                # estimates.
+                pd.Timestamp('2015-02-10')),
         })
 
+        # We want a sid with split dates that collide with another sid (0) to
+        # make sure splits are correctly applied for both sids.
         sid_20_splits = pd.DataFrame({
             SID_FIELD_NAME: 20,
             'ratio': (.4, .5, .6, .7, .8, .9,),
-            'effective_date': (  # We want a sid with split dates that
-                # collide with another sid to make sure splits
-                # are correctly applied for both sids.
-                pd.Timestamp('2015-01-07'),
+            'effective_date': (
+                pd.Timestamp('2015-01-05'),
                 pd.Timestamp('2015-01-09'),
                 pd.Timestamp('2015-01-13'),
                 pd.Timestamp('2015-01-15'),
@@ -1309,16 +1330,19 @@ class WithSplitAdjustedWindows(WithEstimateWindows):
                 pd.Timestamp('2015-01-30')),
         })
 
+        # This sid has event dates that are shifted back so that we can test
+        # cases where an event occurs before the split-asof-date.
         sid_30_splits = pd.DataFrame({
             SID_FIELD_NAME: 30,
             'ratio': (8, 9, 10, 11, 12),
-            'effective_date': (  # Split before the release and before the
+            'effective_date': (
+                # Split before the event and before the
                 # split-asof-date.
                 pd.Timestamp('2015-01-07'),
-                # Split on date of release but before the
+                # Split on date of event but before the
                 # split-asof-date.
                 pd.Timestamp('2015-01-09'),
-                # Split after the release, but before the
+                # Split after the event, but before the
                 # split-asof-date.
                 pd.Timestamp('2015-01-13'),
                 pd.Timestamp('2015-01-15'),
@@ -1414,7 +1438,7 @@ class PreviousWithSplitAdjustedWindows(WithSplitAdjustedWindows,
                 ]),
             cls.create_expected_df(
                 [(0, 201, pd.Timestamp('2015-02-10')),
-                 (10, 311*.3, pd.Timestamp('2015-02-05')),
+                 (10, 311*.3 * .4, pd.Timestamp('2015-02-05')),
                  (20, 221*.8*.9, pd.Timestamp('2015-02-10')),
                  (30, 231, pd.Timestamp('2015-01-20'))],
                 pd.Timestamp('2015-02-10')
@@ -1440,7 +1464,7 @@ class PreviousWithSplitAdjustedWindows(WithSplitAdjustedWindows,
             # becomes our previous quarter, 2Q ago would be Q2, and we have
             # no data on it.
             [cls.create_expected_df(
-                [(0, 101*7, pd.Timestamp('2015-02-10')),
+                [(0, 101*7*8, pd.Timestamp('2015-02-10')),
                  (10, np.NaN, pd.Timestamp('2015-02-05')),
                  (20, 121*.7*.8*.9, pd.Timestamp('2015-02-10')),
                  (30, 131*11*12, pd.Timestamp('2015-01-20'))],
