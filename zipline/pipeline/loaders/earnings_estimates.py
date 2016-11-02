@@ -133,10 +133,10 @@ def validate_split_adjustments_args(name_map,
         )
 
 
-def extend_or_add_new_adjustments(adjustments_dict,
-                                  adjustments,
-                                  column_name,
-                                  ts):
+def add_new_adjustments(adjustments_dict,
+                        adjustments,
+                        column_name,
+                        ts):
     try:
         adjustments_dict[column_name][ts].extend(adjustments)
     except KeyError:
@@ -477,10 +477,10 @@ class EarningsEstimatesLoader(PipelineLoader):
                     col_to_all_adjustments[col_name] = {}
                 for ts in all_adjustments_for_sid[col_name]:
                     adjs = all_adjustments_for_sid[col_name][ts]
-                    extend_or_add_new_adjustments(col_to_all_adjustments,
-                                                  adjs,
-                                                  col_name,
-                                                  ts)
+                    add_new_adjustments(col_to_all_adjustments,
+                                        adjs,
+                                        col_name,
+                                        ts)
         quarter_shifts.groupby(level=SID_FIELD_NAME).apply(collect_adjustments)
         return col_to_all_adjustments
 
@@ -540,10 +540,10 @@ class EarningsEstimatesLoader(PipelineLoader):
                     sid,
                     sid_idx,
                 )
-                extend_or_add_new_adjustments(col_to_overwrites,
-                                              adjs,
-                                              column_name,
-                                              next_qtr_start_idx)
+                add_new_adjustments(col_to_overwrites,
+                                    adjs,
+                                    column_name,
+                                    next_qtr_start_idx)
             # There are no estimates for the quarter. Overwrite all
             # values going up to the starting index of that quarter
             # with the missing value for this column.
@@ -553,10 +553,10 @@ class EarningsEstimatesLoader(PipelineLoader):
                         last_per_qtr.index,
                         next_qtr_start_idx,
                         sid_idx)]
-                extend_or_add_new_adjustments(col_to_overwrites,
-                                              adjs,
-                                              column_name,
-                                              next_qtr_start_idx)
+                add_new_adjustments(col_to_overwrites,
+                                    adjs,
+                                    column_name,
+                                    next_qtr_start_idx)
 
     def overwrite_with_null(self,
                             column,
@@ -772,10 +772,10 @@ class EarningsEstimatesLoader(PipelineLoader):
                         sid_idx,
                         adjustment
                     )
-                    extend_or_add_new_adjustments(col_to_split_adjustments,
-                                                  [adj],
-                                                  column_name,
-                                                  date_index)
+                    add_new_adjustments(col_to_split_adjustments,
+                                        [adj],
+                                        column_name,
+                                        date_index)
 
         return col_to_split_adjustments
 
@@ -870,7 +870,7 @@ class EarningsEstimatesLoader(PipelineLoader):
                                 sid_idx,
                                 adjustment
                             )
-                            extend_or_add_new_adjustments(
+                            add_new_adjustments(
                                 col_to_split_adjustments,
                                 [adj],
                                 column_name,
@@ -984,7 +984,7 @@ class EarningsEstimatesLoader(PipelineLoader):
             if pre:
                 # Either empty or contains all columns.
                 for ts in pre[column_name]:
-                    extend_or_add_new_adjustments(
+                    add_new_adjustments(
                         overwrites,
                         pre[column_name][ts],
                         column_name,
@@ -993,7 +993,7 @@ class EarningsEstimatesLoader(PipelineLoader):
             if post:
                 # Either empty or contains all columns.
                 for ts in post[column_name]:
-                    extend_or_add_new_adjustments(
+                    add_new_adjustments(
                         overwrites,
                         post[column_name][ts],
                         column_name,
