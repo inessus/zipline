@@ -39,6 +39,7 @@ from zipline.testing.fixtures import (
     ZiplineTestCase,
 )
 from zipline.testing.predicates import assert_equal, assert_raises_regex
+from zipline.testing.predicates import assert_frame_equal
 from zipline.utils.numpy_utils import datetime64ns_dtype
 from zipline.utils.numpy_utils import float64_dtype
 
@@ -1753,8 +1754,12 @@ class NextWithMultipleEstimateColumns(WithMultipleEstimateColumns,
 
 
 class WithAdjustmentBoundaries(WithEstimates):
+    START_DATE = pd.Timestamp('2015-01-04', tz='utc')
+    # We want to run the pipeline starting from `START_DATE`, but the
+    # pipeline results will start from the next day, which is
+    # `test_start_date`.
     test_start_date = pd.Timestamp('2015-01-05', tz='utc')
-    test_end_date = pd.Timestamp('2015-01-12', tz='utc')
+    END_DATE = test_end_date = pd.Timestamp('2015-01-12', tz='utc')
     split_adjusted_at_start = test_start_date.tz_localize(None)
     split_adjusted_at_end = test_end_date.tz_localize(None)
     split_adjusted_before_start = (
@@ -1770,8 +1775,14 @@ class WithAdjustmentBoundaries(WithEstimates):
                                  (split_adjusted_before_start,),
                                  (split_adjusted_after_end,)]
 
+    @classmethod
     def init_class_fixtures(cls):
         super(WithAdjustmentBoundaries, cls).init_class_fixtures()
+        cls.s0 = cls.asset_finder.retrieve_asset(0)
+        cls.s1 = cls.asset_finder.retrieve_asset(1)
+        cls.s2 = cls.asset_finder.retrieve_asset(2)
+        cls.s3 = cls.asset_finder.retrieve_asset(3)
+        cls.s4 = cls.asset_finder.retrieve_asset(4)
         cls.expected = cls.make_expected_out()
 
     @classmethod
@@ -1856,7 +1867,7 @@ class WithAdjustmentBoundaries(WithEstimates):
         }, index=[0])
 
         sid_3_splits = pd.DataFrame({
-            SID_FIELD_NAME: 2,
+            SID_FIELD_NAME: 3,
             'ratio': .13,
             'effective_date': cls.test_end_date,
         }, index=[0])
@@ -1865,7 +1876,7 @@ class WithAdjustmentBoundaries(WithEstimates):
         # boundary - while there is no collision with KD/event date for the
         # sid.
         sid_4_splits = pd.DataFrame({
-            SID_FIELD_NAME: 2,
+            SID_FIELD_NAME: 4,
             'ratio': (.14, .15),
             'effective_date': (cls.test_start_date, cls.test_end_date),
         })
@@ -1887,16 +1898,17 @@ class WithAdjustmentBoundaries(WithEstimates):
         )
         result = engine.run_pipeline(
             Pipeline({'estimate': dataset.estimate.latest}),
-            start_date=self.test_start_date,
+            start_date=self.trading_days[0],
             # last event date we have
-            end_date=self.test_end_date,
+            end_date=self.trading_days[-1],
         )
         expected = self.expected[split_date]
-        assert_almost_equal(result, expected)
+        import pdb; pdb.set_trace()
+        assert_frame_equal(result, expected, check_names=False)
 
     @classmethod
     def make_expected_out(cls):
-        pass
+        return {}
 
 
 class PreviousWithAdjustmentBoundaries(WithAdjustmentBoundaries,
@@ -1910,89 +1922,111 @@ class PreviousWithAdjustmentBoundaries(WithAdjustmentBoundaries,
                        split_adjusted_column_names=['estimate'])
 
     @classmethod
-    def make_expected_timelines(cls):
+    def make_expected_out(cls):
         start_date = cls.test_start_date.tz_localize(None)
         end_date = cls.test_end_date.tz_localize(None)
         split_adjusted_at_start_boundary = pd.concat([
             pd.DataFrame({
-                SID_FIELD_NAME: cls.asset_finder.retrieve_equities([0]),
+                SID_FIELD_NAME: cls.s0,
                 'estimate': np.NaN,
-            }, index=pd.date_range(start_date, pd.Timestamp('2015-01-08'))),
+            }, index=pd.date_range(
+                start_date, pd.Timestamp('2015-01-08'), tz='utc'
+            )),
             pd.DataFrame({
-                SID_FIELD_NAME: cls.asset_finder.retrieve_equities([0]),
+                SID_FIELD_NAME: cls.s0,
                 'estimate': 10.,
-            }, index=pd.date_range(pd.Timestamp('2015-01-09'), end_date)),
+            }, index=pd.date_range(
+                pd.Timestamp('2015-01-09'), end_date, tz='utc'
+            )),
             pd.DataFrame({
-                SID_FIELD_NAME: cls.asset_finder.retrieve_equities([1]),
+                SID_FIELD_NAME: cls.s1,
                 'estimate': 11.,
-            }, index=pd.date_range(start_date, end_date)),
+            }, index=pd.date_range(start_date, end_date, tz='utc')),
             pd.DataFrame({
-                SID_FIELD_NAME: cls.asset_finder.retrieve_equities([2]),
+                SID_FIELD_NAME: cls.s2,
                 'estimate': np.NaN
-            }, index=pd.date_range(start_date, end_date)),
+            }, index=pd.date_range(start_date, end_date, tz='utc')),
             pd.DataFrame({
-                SID_FIELD_NAME: cls.asset_finder.retrieve_equities([3]),
+                SID_FIELD_NAME: cls.s3,
                 'estimate': np.NaN
-            }, index=pd.date_range(start_date, end_date - timedelta(1))),
+            }, index=pd.date_range(
+                start_date, end_date - timedelta(1), tz='utc'
+            )),
             pd.DataFrame({
-                SID_FIELD_NAME: cls.asset_finder.retrieve_equities([3]),
+                SID_FIELD_NAME: cls.s3,
                 'estimate': 13. * .13
-            }, index=pd.date_range(start_date, end_date - timedelta(1))),
+            }, index=pd.date_range(end_date, end_date, tz='utc')),
             pd.DataFrame({
-                SID_FIELD_NAME: cls.asset_finder.retrieve_equities([4]),
+                SID_FIELD_NAME: cls.s4,
                 'estimate': np.NaN
-            }, index=pd.date_range(start_date, end_date - timedelta(2))),
+            }, index=pd.date_range(
+                start_date, end_date - timedelta(2), tz='utc'
+            )),
             pd.DataFrame({
-                SID_FIELD_NAME: cls.asset_finder.retrieve_equities([4]),
-                'estimate': 14. * .14
-            }, index=pd.date_range(end_date - timedelta(1), end_date)),
-        ])
+                SID_FIELD_NAME: cls.s4,
+                'estimate': 14. * .15
+            }, index=pd.date_range(
+                end_date - timedelta(1), end_date, tz='utc'
+            )),
+        ]).set_index(SID_FIELD_NAME, append=True).unstack(
+            SID_FIELD_NAME).reindex(cls.trading_days).stack(
+            SID_FIELD_NAME, dropna=False)
 
         split_adjusted_at_end_boundary = pd.concat([
             pd.DataFrame({
-                SID_FIELD_NAME: cls.asset_finder.retrieve_equities([0]),
+                SID_FIELD_NAME: cls.s0,
                 'estimate': np.NaN,
-            }, index=pd.date_range(start_date, pd.Timestamp('2015-01-08'))),
+            }, index=pd.date_range(
+                start_date, pd.Timestamp('2015-01-08'), tz='utc'
+            )),
             pd.DataFrame({
-                SID_FIELD_NAME: cls.asset_finder.retrieve_equities([0]),
+                SID_FIELD_NAME: cls.s0,
                 'estimate': 10.,
-            }, index=pd.date_range(pd.Timestamp('2015-01-09'), end_date)),
+            }, index=pd.date_range(
+                pd.Timestamp('2015-01-09'), end_date, tz='utc'
+            )),
             pd.DataFrame({
-                SID_FIELD_NAME: cls.asset_finder.retrieve_equities([1]),
+                SID_FIELD_NAME: cls.s1,
                 'estimate': 11.,
-            }, index=pd.date_range(start_date, end_date)),
+            }, index=pd.date_range(start_date, end_date, tz='utc')),
             pd.DataFrame({
-                SID_FIELD_NAME: cls.asset_finder.retrieve_equities([2]),
+                SID_FIELD_NAME: cls.s2,
                 'estimate': np.NaN
-            }, index=pd.date_range(start_date, end_date)),
+            }, index=pd.date_range(start_date, end_date, tz='utc')),
             pd.DataFrame({
-                SID_FIELD_NAME: cls.asset_finder.retrieve_equities([3]),
+                SID_FIELD_NAME: cls.s3,
                 'estimate': np.NaN
-            }, index=pd.date_range(start_date, end_date - timedelta(1))),
+            }, index=pd.date_range(
+                start_date, end_date - timedelta(1), tz='utc'
+            )),
             pd.DataFrame({
-                SID_FIELD_NAME: cls.asset_finder.retrieve_equities([3]),
+                SID_FIELD_NAME: cls.s3,
                 'estimate': 13.
-            }, index=pd.date_range(start_date, end_date - timedelta(1))),
+            }, index=pd.date_range(end_date, end_date, tz='utc')),
             pd.DataFrame({
-                SID_FIELD_NAME: cls.asset_finder.retrieve_equities([4]),
+                SID_FIELD_NAME: cls.s4,
                 'estimate': np.NaN
-            }, index=pd.date_range(start_date, end_date - timedelta(2))),
+            }, index=pd.date_range(
+                start_date, end_date - timedelta(2), tz='utc'
+            )),
             pd.DataFrame({
-                SID_FIELD_NAME: cls.asset_finder.retrieve_equities([4]),
+                SID_FIELD_NAME: cls.s4,
                 'estimate': 14.
-            }, index=pd.date_range(end_date - timedelta(1), end_date)),
-        ])
+            }, index=pd.date_range(end_date - timedelta(1), end_date, tz='utc')),
+        ]).set_index(SID_FIELD_NAME, append=True).unstack(
+            SID_FIELD_NAME).reindex(cls.trading_days).stack(SID_FIELD_NAME,
+                                                            dropna=False)
 
         split_adjusted_before_start_boundary = split_adjusted_at_start_boundary
         split_adjusted_after_end_boundary = split_adjusted_at_end_boundary
 
-        return {cls.test_start_date:
+        return {cls.split_adjusted_at_start:
                 split_adjusted_at_start_boundary,
-                (cls.test_start_date - timedelta(days=1)):
+                cls.split_adjusted_before_start:
                 split_adjusted_before_start_boundary,
-                cls.test_end_date:
+                cls.split_adjusted_at_end:
                 split_adjusted_at_end_boundary,
-                (cls.test_end_date + timedelta(days=1)):
+                cls.split_adjusted_after_end:
                 split_adjusted_after_end_boundary}
 
 
@@ -2007,7 +2041,7 @@ class NextWithAdjustmentBoundaries(WithAdjustmentBoundaries,
                        split_adjusted_column_names=['estimate'])
 
     @classmethod
-    def make_expected_timelines(cls):
+    def make_expected_out(cls):
         return {}
 
 
