@@ -458,6 +458,13 @@ class EarningsEstimatesLoader(PipelineLoader):
                 sid_estimates = self.estimates[
                     self.estimates[SID_FIELD_NAME] == sid
                 ]
+                # We might not have any overwrites but still have
+                # adjustments, and we will need to manually add columns if
+                # that is the case.
+                for col_name in self._split_adjusted_column_names:
+                    if col_name not in all_adjustments_for_sid:
+                        all_adjustments_for_sid[col_name] = {}
+
                 self.collect_split_adjustments(
                     all_adjustments_for_sid,
                     requested_qtr_data,
