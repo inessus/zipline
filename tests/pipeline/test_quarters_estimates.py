@@ -2042,7 +2042,81 @@ class NextWithAdjustmentBoundaries(WithAdjustmentBoundaries,
 
     @classmethod
     def make_expected_out(cls):
-        return {}
+        start_date = cls.test_start_date.tz_localize(None)
+        end_date = cls.test_end_date.tz_localize(None)
+        split_adjusted_at_start_boundary = pd.concat([
+            pd.DataFrame({
+                SID_FIELD_NAME: cls.s0,
+                'estimate': 10,
+            }, index=pd.date_range(
+                start_date, pd.Timestamp('2015-01-09'), tz='utc'
+            )),
+            pd.DataFrame({
+                SID_FIELD_NAME: cls.s1,
+                'estimate': 11.,
+            }, index=pd.date_range(start_date, start_date, tz='utc')),
+            pd.DataFrame({
+                SID_FIELD_NAME: cls.s2,
+                'estimate': 12.,
+            }, index=pd.date_range(end_date, end_date, tz='utc')),
+            pd.DataFrame({
+                SID_FIELD_NAME: cls.s3,
+                'estimate': 13. * .13,
+            }, index=pd.date_range(
+                end_date - timedelta(1), end_date, tz='utc'
+            )),
+            pd.DataFrame({
+                SID_FIELD_NAME: cls.s4,
+                'estimate': 14.,
+            }, index=pd.date_range(
+                end_date - timedelta(1), end_date - timedelta(1), tz='utc'
+            )),
+        ]).set_index(SID_FIELD_NAME, append=True).unstack(
+            SID_FIELD_NAME).reindex(cls.trading_days).stack(
+            SID_FIELD_NAME, dropna=False)
+
+        split_adjusted_at_end_boundary = pd.concat([
+            pd.DataFrame({
+                SID_FIELD_NAME: cls.s0,
+                'estimate': 10,
+            }, index=pd.date_range(
+                start_date, pd.Timestamp('2015-01-09'), tz='utc'
+            )),
+            pd.DataFrame({
+                SID_FIELD_NAME: cls.s1,
+                'estimate': 11.,
+            }, index=pd.date_range(start_date, start_date, tz='utc')),
+            pd.DataFrame({
+                SID_FIELD_NAME: cls.s2,
+                'estimate': 12.,
+            }, index=pd.date_range(end_date, end_date, tz='utc')),
+            pd.DataFrame({
+                SID_FIELD_NAME: cls.s3,
+                'estimate': 13.,
+            }, index=pd.date_range(
+                end_date - timedelta(1), end_date, tz='utc'
+            )),
+            pd.DataFrame({
+                SID_FIELD_NAME: cls.s4,
+                'estimate': 14.,
+            }, index=pd.date_range(
+                end_date - timedelta(1), end_date - timedelta(1), tz='utc'
+            )),
+        ]).set_index(SID_FIELD_NAME, append=True).unstack(
+            SID_FIELD_NAME).reindex(cls.trading_days).stack(
+            SID_FIELD_NAME, dropna=False)
+
+        split_adjusted_before_start_boundary = split_adjusted_at_start_boundary
+        split_adjusted_after_end_boundary = split_adjusted_at_end_boundary
+
+        return {cls.split_adjusted_at_start:
+                split_adjusted_at_start_boundary,
+                cls.split_adjusted_before_start:
+                split_adjusted_before_start_boundary,
+                cls.split_adjusted_at_end:
+                split_adjusted_at_end_boundary,
+                cls.split_adjusted_after_end:
+                split_adjusted_after_end_boundary}
 
 
 class QuarterShiftTestCase(ZiplineTestCase):
