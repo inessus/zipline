@@ -1903,7 +1903,6 @@ class WithAdjustmentBoundaries(WithEstimates):
             end_date=self.trading_days[-1],
         )
         expected = self.expected[split_date]
-        import pdb; pdb.set_trace()
         assert_frame_equal(result, expected, check_names=False)
 
     @classmethod
