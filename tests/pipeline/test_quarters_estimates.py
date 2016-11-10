@@ -1770,7 +1770,7 @@ class NextWithSplitAdjustedWindows(WithSplitAdjustedWindows, ZiplineTestCase):
 class WithMultipleEstimateColumns(WithEstimates):
     END_DATE = pd.Timestamp('2015-02-10')
     window_test_start_date = pd.Timestamp('2015-01-05')
-    test_start_date = pd.Timestamp('2015-01-12', tz='utc')
+    test_start_date = pd.Timestamp('2015-01-09', tz='utc')
     test_end_date = pd.Timestamp('2015-01-12', tz='utc')
 
     @classmethod
@@ -1809,17 +1809,24 @@ class WithMultipleEstimateColumns(WithEstimates):
         }, index=[0])
 
     @classmethod
-    def make_expected_timelines(cls):
+    def make_expected_timelines1q_out(cls):
+        return {}
+
+    @classmethod
+    def make_expected_timelines2q_out(cls):
         return {}
 
     @classmethod
     def init_class_fixtures(cls):
         super(WithMultipleEstimateColumns, cls).init_class_fixtures()
-        cls.timelines = cls.make_expected_timelines()
+        cls.timelines_1q_out = cls.make_expected_timelines1q_out()
+        cls.timelines_2q_out = cls.make_expected_timelines2q_out()
 
     def test_estimate_windows_at_quarter_boundaries(self):
+        # Testing that if you have multiple columns, you can split-adjust
+        # correctly.
         dataset = MultipleColumnsQuartersEstimates(1)
-        timelines = self.timelines
+        timelines = self.timelines_1q_out
         window_len = 3
 
         class SomeFactor(CustomFactor):
@@ -1827,8 +1834,8 @@ class WithMultipleEstimateColumns(WithEstimates):
             window_length = window_len
 
             def compute(self, today, assets, out, estimate1, estimate2):
-                assert_almost_equal(estimate1, timelines['estimate1'])
-                assert_almost_equal(estimate2, timelines['estimate2'])
+                assert_almost_equal(estimate1, timelines[today]['estimate1'])
+                assert_almost_equal(estimate2, timelines[today]['estimate2'])
 
         engine = SimplePipelineEngine(
             lambda x: self.loader,
@@ -1837,6 +1844,46 @@ class WithMultipleEstimateColumns(WithEstimates):
         )
         engine.run_pipeline(
             Pipeline({'est': SomeFactor()}),
+            start_date=self.test_start_date,
+            # last event date we have
+            end_date=self.test_end_date,
+        )
+
+    def test_multiple_datasets_different_num_announcements(self):
+        # Testing that if you have multiple datasets that ask for a different
+        # number of quarters out, and each asks for a different estimates
+        # column, you get split-adjust correctly.
+        dataset1 = MultipleColumnsQuartersEstimates(1)
+        dataset2 = MultipleColumnsQuartersEstimates(2)
+        timelines_1q_out = self.timelines_1q_out
+        timelines_2q_out = self.timelines_2q_out
+        window_len = 3
+
+        class SomeFactor1(CustomFactor):
+            inputs = [dataset1.estimate1]
+            window_length = window_len
+
+            def compute(self, today, assets, out, estimate1):
+                assert_almost_equal(
+                    estimate1, timelines_1q_out[today]['estimate1']
+                )
+
+        class SomeFactor2(CustomFactor):
+            inputs = [dataset2.estimate2]
+            window_length = window_len
+
+            def compute(self, today, assets, out, estimate2):
+                assert_almost_equal(
+                    estimate2, timelines_2q_out[today]['estimate2']
+                )
+
+        engine = SimplePipelineEngine(
+            lambda x: self.loader,
+            self.trading_days,
+            self.asset_finder,
+        )
+        engine.run_pipeline(
+            Pipeline({'est1': SomeFactor1(), 'est2': SomeFactor2()}),
             start_date=self.test_start_date,
             # last event date we have
             end_date=self.test_end_date,
@@ -1856,9 +1903,28 @@ class PreviousWithMultipleEstimateColumns(WithMultipleEstimateColumns,
         )
 
     @classmethod
-    def make_expected_timelines(cls):
-        return {'estimate1': np.array([[np.NaN]] * 2 + [[3600.]]),
-                'estimate2': np.array([[np.NaN]] * 2 + [[6600.]])}
+    def make_expected_timelines1q_out(cls):
+        return {
+            pd.Timestamp('2015-01-09', tz='utc'): {
+                'estimate1': np.array([[np.NaN]] * 2 + [[3300.]]),
+                'estimate2': np.array([[np.NaN]] * 2 + [[6300.]])
+            },
+            pd.Timestamp('2015-01-12', tz='utc'): {
+                'estimate1': np.array([[np.NaN]] * 2 + [[3600.]]),
+                'estimate2': np.array([[np.NaN]] * 2 + [[6600.]])
+            }
+        }
+
+    @classmethod
+    def make_expected_timelines2q_out(cls):
+        return {
+            pd.Timestamp('2015-01-09', tz='utc'): {
+                'estimate2': np.array([[np.NaN]] * 3)
+            },
+            pd.Timestamp('2015-01-12', tz='utc'): {
+                'estimate2': np.array([[np.NaN]] * 2 + [[6300.]])
+            }
+        }
 
 
 class NextWithMultipleEstimateColumns(WithMultipleEstimateColumns,
@@ -1874,9 +1940,28 @@ class NextWithMultipleEstimateColumns(WithMultipleEstimateColumns,
         )
 
     @classmethod
-    def make_expected_timelines(cls):
-        return {'estimate1': np.array([[3600.]] * 3),
-                'estimate2': np.array([[6600.]] * 3)}
+    def make_expected_timelines1q_out(cls):
+        return {
+            pd.Timestamp('2015-01-09', tz='utc'): {
+                'estimate1': np.array([[3300.]] * 3),
+                'estimate2': np.array([[6300.]] * 3)
+            },
+            pd.Timestamp('2015-01-12', tz='utc'): {
+                'estimate1': np.array([[3600.]] * 3),
+                'estimate2': np.array([[6600.]] * 3)
+            }
+        }
+
+    @classmethod
+    def make_expected_timelines2q_out(cls):
+        return {
+            pd.Timestamp('2015-01-09', tz='utc'): {
+                'estimate2': np.array([[6600.]] * 3)
+            },
+            pd.Timestamp('2015-01-12', tz='utc'): {
+                'estimate2': np.array([[np.NaN]] * 3)
+            }
+        }
 
 
 class WithAdjustmentBoundaries(WithEstimates):
