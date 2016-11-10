@@ -1177,8 +1177,10 @@ class NextEarningsEstimatesLoader(EarningsEstimatesLoader):
         for column_name in requested_split_adjusted_columns:
             for overwrite_ts in adjustments_for_sid[column_name]:
                 # We need to cumulatively re-apply all adjustments up to the
-                # split-adjusted-asof-date.
-                if overwrite_ts <= split_adjusted_asof_idx:
+                # split-adjusted-asof-date. We might not have any
+                # pre-adjustments, so we should check for that.
+                if overwrite_ts <= split_adjusted_asof_idx \
+                        and pre_adjustments_dict:
                     for split_ts in pre_adjustments_dict[column_name]:
                         # The split has to have occurred during the span of
                         # the overwrite.
