@@ -733,6 +733,15 @@ class NextEstimateMultipleQuarters(
         return expected
 
 
+class BlazeNextEstimateMultipleQuarters(NextEstimateMultipleQuarters):
+    @classmethod
+    def make_loader(cls, events, columns):
+        return BlazeNextEstimatesLoader(
+            bz.data(events),
+            columns,
+        )
+
+
 class PreviousEstimateMultipleQuarters(
     WithEstimateMultipleQuarters,
     ZiplineTestCase
@@ -771,6 +780,15 @@ class PreviousEstimateMultipleQuarters(
             FISCAL_YEAR_FIELD_NAME + '2'
         ].loc[pd.Timestamp('2015-01-20'):] = 2015
         return expected
+
+
+class BlazePreviousEstimateMultipleQuarters(PreviousEstimateMultipleQuarters):
+    @classmethod
+    def make_loader(cls, events, columns):
+        return BlazePreviousEstimatesLoader(
+            bz.data(events),
+            columns,
+        )
 
 
 class WithVaryingNumEstimates(WithEstimates):
@@ -864,6 +882,15 @@ class PreviousVaryingNumEstimates(
         return PreviousEarningsEstimatesLoader(events, columns)
 
 
+class BlazePreviousVaryingNumEstimates(PreviousVaryingNumEstimates):
+    @classmethod
+    def make_loader(cls, events, columns):
+        return BlazePreviousEstimatesLoader(
+            bz.data(events),
+            columns,
+        )
+
+
 class NextVaryingNumEstimates(
     WithVaryingNumEstimates,
     ZiplineTestCase
@@ -884,6 +911,15 @@ class NextVaryingNumEstimates(
     @classmethod
     def make_loader(cls, events, columns):
         return NextEarningsEstimatesLoader(events, columns)
+
+
+class BlazeNextVaryingNumEstimates(NextVaryingNumEstimates):
+    @classmethod
+    def make_loader(cls, events, columns):
+        return BlazeNextEstimatesLoader(
+            bz.data(events),
+            columns,
+        )
 
 
 class WithEstimateWindows(WithEstimates):
@@ -1127,6 +1163,12 @@ class PreviousEstimateWindows(WithEstimateWindows, ZiplineTestCase):
         }
 
 
+class BlazePreviousEstimateWindows(PreviousEstimateWindows):
+    @classmethod
+    def make_loader(cls, events, columns):
+        return BlazePreviousEstimatesLoader(bz.data(events), columns)
+
+
 class NextEstimateWindows(WithEstimateWindows, ZiplineTestCase):
     @classmethod
     def make_loader(cls, events, columns):
@@ -1232,6 +1274,12 @@ class NextEstimateWindows(WithEstimateWindows, ZiplineTestCase):
             1: oneq_next,
             2: twoq_next
         }
+
+
+class BlazeNextEstimateWindows(NextEstimateWindows):
+    @classmethod
+    def make_loader(cls, events, columns):
+        return BlazeNextEstimatesLoader(bz.data(events), columns)
 
 
 class WithSplitAdjustedWindows(WithEstimateWindows):
@@ -1556,6 +1604,18 @@ class PreviousWithSplitAdjustedWindows(WithSplitAdjustedWindows,
         }
 
 
+class BlazePreviousWithSplitAdjustedWindows(PreviousWithSplitAdjustedWindows):
+    @classmethod
+    def make_loader(cls, events, columns):
+        return BlazePreviousEstimatesLoader(
+            bz.data(events),
+            columns,
+            split_adjustments_loader=cls.adjustment_reader,
+            split_adjusted_column_names=['estimate'],
+            split_adjusted_asof=cls.split_adjusted_asof_date,
+        )
+
+
 class NextWithSplitAdjustedWindows(WithSplitAdjustedWindows, ZiplineTestCase):
 
     @classmethod
@@ -1767,6 +1827,18 @@ class NextWithSplitAdjustedWindows(WithSplitAdjustedWindows, ZiplineTestCase):
         }
 
 
+class BlazeNextWithSplitAdjustedWindows(NextWithSplitAdjustedWindows):
+    @classmethod
+    def make_loader(cls, events, columns):
+        return BlazeNextEstimatesLoader(
+            bz.data(events),
+            columns,
+            split_adjustments_loader=cls.adjustment_reader,
+            split_adjusted_column_names=['estimate'],
+            split_adjusted_asof=cls.split_adjusted_asof_date,
+        )
+
+
 class WithMultipleEstimateColumns(WithEstimates):
     END_DATE = pd.Timestamp('2015-02-10')
     window_test_start_date = pd.Timestamp('2015-01-05')
@@ -1927,6 +1999,20 @@ class PreviousWithMultipleEstimateColumns(WithMultipleEstimateColumns,
         }
 
 
+class BlazePreviousWithMultipleEstimateColumns(
+    PreviousWithMultipleEstimateColumns
+):
+    @classmethod
+    def make_loader(cls, events, columns):
+        return BlazePreviousEstimatesLoader(
+            bz.data(events),
+            columns,
+            split_adjustments_loader=cls.adjustment_reader,
+            split_adjusted_column_names=['estimate1', 'estimate2'],
+            split_adjusted_asof=pd.Timestamp('2015-01-05'),
+        )
+
+
 class NextWithMultipleEstimateColumns(WithMultipleEstimateColumns,
                                       ZiplineTestCase):
     @classmethod
@@ -1964,13 +2050,25 @@ class NextWithMultipleEstimateColumns(WithMultipleEstimateColumns,
         }
 
 
+class BlazeNextWithMultipleEstimateColumns(NextWithMultipleEstimateColumns):
+    @classmethod
+    def make_loader(cls, events, columns):
+        return BlazeNextEstimatesLoader(
+            bz.data(events),
+            columns,
+            split_adjustments_loader=cls.adjustment_reader,
+            split_adjusted_column_names=['estimate1', 'estimate2'],
+            split_adjusted_asof=pd.Timestamp('2015-01-05'),
+        )
+
+
 class WithAdjustmentBoundaries(WithEstimates):
-    START_DATE = pd.Timestamp('2015-01-04', tz='utc')
+    START_DATE = pd.Timestamp('2015-01-04')
     # We want to run the pipeline starting from `START_DATE`, but the
     # pipeline results will start from the next day, which is
     # `test_start_date`.
-    test_start_date = pd.Timestamp('2015-01-05', tz='utc')
-    END_DATE = test_end_date = pd.Timestamp('2015-01-12', tz='utc')
+    test_start_date = pd.Timestamp('2015-01-05')
+    END_DATE = test_end_date = pd.Timestamp('2015-01-12')
     split_adjusted_at_start = test_start_date.tz_localize(None)
     split_adjusted_at_end = test_end_date.tz_localize(None)
     split_adjusted_before_start = (
@@ -2240,6 +2338,16 @@ class PreviousWithAdjustmentBoundaries(WithAdjustmentBoundaries,
                 split_adjusted_after_end_boundary}
 
 
+class BlazePreviousWithAdjustmentBoundaries(PreviousWithAdjustmentBoundaries):
+    @classmethod
+    def make_loader(cls, events, columns):
+        return partial(BlazePreviousEstimatesLoader,
+                       bz.data(events),
+                       columns,
+                       split_adjustments_loader=cls.adjustment_reader,
+                       split_adjusted_column_names=['estimate'])
+
+
 class NextWithAdjustmentBoundaries(WithAdjustmentBoundaries,
                                    ZiplineTestCase):
     @classmethod
@@ -2327,6 +2435,16 @@ class NextWithAdjustmentBoundaries(WithAdjustmentBoundaries,
                 split_adjusted_at_end_boundary,
                 cls.split_adjusted_after_end:
                 split_adjusted_after_end_boundary}
+
+
+class BlazeNextWithAdjustmentBoundaries(NextWithAdjustmentBoundaries):
+    @classmethod
+    def make_loader(cls, events, columns):
+        return partial(BlazeNextEstimatesLoader,
+                       bz.data(events),
+                       columns,
+                       split_adjustments_loader=cls.adjustment_reader,
+                       split_adjusted_column_names=['estimate'])
 
 
 class QuarterShiftTestCase(ZiplineTestCase):
