@@ -461,7 +461,7 @@ class EarningsEstimatesLoader(PipelineLoader):
                 # We might not have any overwrites but still have
                 # adjustments, and we will need to manually add columns if
                 # that is the case.
-                for col_name in self._split_adjusted_column_names:
+                for col_name in requested_split_adjusted_columns_for_group:
                     if col_name not in all_adjustments_for_sid:
                         all_adjustments_for_sid[col_name] = {}
 
